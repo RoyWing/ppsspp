@@ -109,6 +109,12 @@ VkResult VulkanContext::CreateInstance(const char *app_name, int app_ver, uint32
 	instance_extensions_enabled_.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
 #elif defined(__ANDROID__)
 	instance_extensions_enabled_.push_back(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME);
+#elif defined(VK_USE_PLATFORM_XCB_KHR)
+	instance_extensions_enabled_.push_back(VK_KHR_XCB_SURFACE_EXTENSION_NAME);
+#elif defined(VK_USE_PLATFORM_WAYLAND_KHR)
+	instance_extensions.enabled_.push_back(VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME);
+#else
+	//...
 #endif
 
 	if (flags_ & VULKAN_FLAG_VALIDATE) {
@@ -641,6 +647,69 @@ void VulkanContext::ReinitSurfaceAndroid(int width, int height) {
 	width_ = width;
 	height_ = height;
 }
+
+#elif defined(VK_USE_PLATFORM_XCB_KHR)
+
+void VulkanContext::InitSurfaceXCB(xcb_connection_t *conn, xcb_window_t window, int width, int height) {
+	xcbConn_ = conn;
+	xcbWindow_ = window;
+
+	ReinitSurfaceXCB(width, height);
+}
+
+void VulkanContext::ReinitSurfaceXCB(int width, int height) {
+	if (surface_ != VK_NULL_HANDLE) {
+		ILOG("Destroying XCB Vulkan surface (%d, %d)", width_, height_);
+		vkDestroySurfaceKHR(instance_, surface_, nullptr);
+		surface_ = VK_NULL_HANDLE;
+	}
+
+	VkResult U_ASSERT_ONLY res;
+
+	ILOG("Creating XCB Vulkan surface (%d, %d)", width, height);
+
+	VkXCBSurfaceCreateInfoKHR xcb = { VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR };
+	xcb.flags = 0;
+	xcb.connection = xcbConn_;
+	xcb.window = xcbWindow_;
+	res = vkCreateXcbSurfaceKHR(instance_, &xcb, nullptr, &surface_);
+	assert(res == VK_SUCCESS);
+
+	width_ = width;
+	height_ = height;
+}
+
+#elif defined(VK_USE_PLATFORM_XLIB_KHR)
+
+void VulkanContext::InitSurfaceXlib(Display	*display, Window window, int width, int height) {
+	display_ = display;
+	window_ = window;
+
+	ReinitSurfaceXlib(width, height);
+}
+
+void VulkanContext::ReinitSurfaceXlib(int width, int height) {
+	if (surface_ != VK_NULL_HANDLE) {
+		ILOG("Destroying Xlib Vulkan surface (%d, %d)", width_, height_);
+		vkDestroySurfaceKHR(instance_, surface_, nullptr);
+		surface_ = VK_NULL_HANDLE;
+	}
+
+	VkResult U_ASSERT_ONLY res;
+
+	ILOG("Creating Xlib Vulkan surface (%d, %d)", width, height);
+
+	VkXlibSurfaceCreateInfoKHR xlib = { VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR };
+	xlib.flags = 0;
+	xlib.dpy = display_;
+	xlib.window = window_;
+	res = vkCreateXlibSurfaceKHR(instance_, &xlib, nullptr, &surface_);
+	assert(res == VK_SUCCESS);
+
+	width_ = width;
+	height_ = height;
+}
+
 #endif
 
 bool VulkanContext::InitQueue() {

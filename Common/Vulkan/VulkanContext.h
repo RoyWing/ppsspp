@@ -20,8 +20,10 @@
 #elif defined(__ANDROID__)  // _WIN32
 #include <android/native_window_jni.h>
 #define VK_USE_PLATFORM_ANDROID_KHR
+#elif defined(VK_USE_PLATFORM_XLIB_KHR)
+#include <X11/Xlib.h>
+#include <X11/Xutil.h>
 #else
-#define VK_USE_PLATFORM_XCB_KHR
 #include <unistd.h>
 #endif // _WIN32
 
@@ -140,7 +142,14 @@ public:
 #elif __ANDROID__
 	void InitSurfaceAndroid(ANativeWindow *native_window, int width, int height);
 	void ReinitSurfaceAndroid(int width, int height);
+#elif defined(VK_USE_PLATFORM_XCB_KHR)
+	void InitSurfaceXCB(xcb_connection_t *conn, xcb_window_t window, int width, int height);
+	void ReinitSurfaceXCB(int width, int height);
+#elif defined(VK_USE_PLATFORM_XLIB_KHR)
+	void InitSurfaceXlib(Display *display, Window window, int width, int height);
+	void ReinitSurfaceXlib(int width, int height);
 #endif
+
 	bool InitQueue();
 	bool InitObjects();
 	bool InitSwapchain();
@@ -243,6 +252,12 @@ private:
 	HWND window = nullptr;          // hWnd - window handle
 #elif __ANDROID__  // _WIN32
 	ANativeWindow *native_window = nullptr;
+#elif defined(VK_USE_PLATFORM_XCB_KHR)
+	xcb_connection_t *xcbConn_;
+	xcb_window_t xcbWindow_;
+#elif defined(VK_USE_PLATFORM_XLIB_KHR)
+	Display *display_ = nullptr;
+	Window window_ = 0;
 #endif // _WIN32
 
 	VkInstance instance_ = VK_NULL_HANDLE;
@@ -253,16 +268,16 @@ private:
 	std::string init_error_;
 	std::vector<const char *> instance_layer_names_;
 	std::vector<LayerProperties> instance_layer_properties_;
-	
+
 	std::vector<const char *> instance_extensions_enabled_;
 	std::vector<VkExtensionProperties> instance_extension_properties_;
 
 	std::vector<const char *> device_layer_names_;
 	std::vector<LayerProperties> device_layer_properties_;
-	
+
 	std::vector<const char *> device_extensions_enabled_;
 	std::vector<VkExtensionProperties> device_extension_properties_;
-	
+
 	std::vector<VkPhysicalDevice> physical_devices_;
 
 	int physical_device_ = -1;
