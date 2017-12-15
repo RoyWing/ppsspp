@@ -40,6 +40,11 @@ SDLJoystick *joystick = NULL;
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include "SDL_syswm.h"
+#elif defined(VK_USE_PLATFORM_XCB_KHR)
+#include <X11/Xlib.h>
+#include <X11/Xutil.h>
+#include <X11/Xlib-xcb.h>
+#include "SDL_syswm.h"
 #endif
 
 #if defined(USING_EGL)
@@ -348,14 +353,20 @@ public:
 	}
 
 	void Resize() override {
+		/*
 		draw_->HandleEvent(Draw::Event::LOST_BACKBUFFER, vulkan_->GetBackbufferWidth(), vulkan_->GetBackbufferHeight());
 		vulkan_->DestroyObjects();
 		// TODO: Take from real window dimensions
 		int width = 1024;
 		int height = 768;
+#if defined(VK_USE_PLATFORM_XLIB_KHR)
 		vulkan_->ReinitSurfaceXlib(width, height);
+#elif defined(VK_USE_PLATFORM_XCB_KHR)
+		vulkan_->ReinitSurfaceXcb(width, height);
+#endif
 		vulkan_->InitObjects();
 		draw_->HandleEvent(Draw::Event::GOT_BACKBUFFER, vulkan_->GetBackbufferWidth(), vulkan_->GetBackbufferHeight());
+		*/
 	}
 
 	void SwapInterval(int interval) override {
@@ -373,14 +384,11 @@ private:
 };
 
 bool SDLVulkanGraphicsContext::Init(SDL_Window *&window, int x, int y, int mode, std::string *error_message) {
-	mode |= SDL_WINDOW_VULKAN;
 	window = SDL_CreateWindow("Initializing Vulkan...", x, y, pixel_xres, pixel_yres, mode);
-	SDL_SysWMinfo info;
-	SDL_GetWindowWMInfo(window, &info);
-	Display *display = info.info.x11.display;
-	Window x11_window = info.info.x11.window;
-
-	ILOG("Display: %p", display);
+	if (!window) {
+		fprintf(stderr, "Error creating SDL window: %s\n", SDL_GetError());
+		exit(1);
+	}
 
 	init_glslang();
 
@@ -414,7 +422,29 @@ bool SDLVulkanGraphicsContext::Init(SDL_Window *&window, int x, int y, int mode,
 		return false;
 	}
 
+	SDL_SysWMinfo info{};
+	SDL_VERSION(&info.version); //Set SDL version
+	if (!SDL_GetWindowWMInfo(window, &info)) {
+		fprintf(stderr, "Error getting SDL window wm info: %s\n", SDL_GetError());
+		exit(1);
+	}
+	Display *display = info.info.x11.display;
+	Window x11_window = info.info.x11.window;
+	switch (info.subsystem) {
+	case SDL_SYSWM_X11:
+		break;
+	default:
+		fprintf(stderr, "Vulkan subsystem %d not supported\n", info.subsystem);
+		exit(1);
+		break;
+	}
+	ILOG("Display: %p", display);
+
+#if defined(VK_USE_PLATFORM_XLIB_KHR)
 	vulkan_->InitSurfaceXlib(display, x11_window, pixel_xres, pixel_yres);
+#elif defined(VK_USE_PLATFORM_XCB_KHR)
+	vulkan_->InitSurfaceXcb(XGetXCBConnection(display), x11_window, pixel_xres, pixel_yres);
+#endif
 
 	if (!vulkan_->InitObjects()) {
 		*error_message = vulkan_->InitError();

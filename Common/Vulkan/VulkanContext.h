@@ -143,8 +143,8 @@ public:
 	void InitSurfaceAndroid(ANativeWindow *native_window, int width, int height);
 	void ReinitSurfaceAndroid(int width, int height);
 #elif defined(VK_USE_PLATFORM_XCB_KHR)
-	void InitSurfaceXCB(xcb_connection_t *conn, xcb_window_t window, int width, int height);
-	void ReinitSurfaceXCB(int width, int height);
+	void InitSurfaceXcb(xcb_connection_t *conn, xcb_window_t window, int width, int height);
+	void ReinitSurfaceXcb(int width, int height);
 #elif defined(VK_USE_PLATFORM_XLIB_KHR)
 	bool InitSurfaceXlib(Display *display, Window window, int width, int height);
 	bool ReinitSurfaceXlib(int width, int height);

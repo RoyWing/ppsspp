@@ -656,14 +656,14 @@ void VulkanContext::ReinitSurfaceAndroid(int width, int height) {
 
 #elif defined(VK_USE_PLATFORM_XCB_KHR)
 
-void VulkanContext::InitSurfaceXCB(xcb_connection_t *conn, xcb_window_t window, int width, int height) {
+void VulkanContext::InitSurfaceXcb(xcb_connection_t *conn, xcb_window_t window, int width, int height) {
 	xcbConn_ = conn;
 	xcbWindow_ = window;
 
-	ReinitSurfaceXCB(width, height);
+	ReinitSurfaceXcb(width, height);
 }
 
-void VulkanContext::ReinitSurfaceXCB(int width, int height) {
+void VulkanContext::ReinitSurfaceXcb(int width, int height) {
 	if (surface_ != VK_NULL_HANDLE) {
 		ILOG("Destroying XCB Vulkan surface (%d, %d)", width_, height_);
 		vkDestroySurfaceKHR(instance_, surface_, nullptr);
@@ -674,7 +674,7 @@ void VulkanContext::ReinitSurfaceXCB(int width, int height) {
 
 	ILOG("Creating XCB Vulkan surface (%d, %d)", width, height);
 
-	VkXCBSurfaceCreateInfoKHR xcb = { VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR };
+	VkXcbSurfaceCreateInfoKHR xcb = { VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR };
 	xcb.flags = 0;
 	xcb.connection = xcbConn_;
 	xcb.window = xcbWindow_;
