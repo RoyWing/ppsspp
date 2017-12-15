@@ -111,6 +111,10 @@ VkResult VulkanContext::CreateInstance(const char *app_name, int app_ver, uint32
 	instance_extensions_enabled_.push_back(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME);
 #elif defined(VK_USE_PLATFORM_XCB_KHR)
 	instance_extensions_enabled_.push_back(VK_KHR_XCB_SURFACE_EXTENSION_NAME);
+#elif defined(VK_USE_PLATFORM_XLIB_KHR)
+	instance_extensions_enabled_.push_back(VK_KHR_XLIB_SURFACE_EXTENSION_NAME);
+#elif defined(VK_USE_PLATFORM_MIR_KHR)
+	instance_extensions_enabled_.push_back(VK_KHR_MIR_SURFACE_EXTENSION_NAME);
 #elif defined(VK_USE_PLATFORM_WAYLAND_KHR)
 	instance_extensions.enabled_.push_back(VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME);
 #else
@@ -430,6 +434,7 @@ int VulkanContext::GetBestPhysicalDevice() {
 
 void VulkanContext::ChooseDevice(int physical_device) {
 	physical_device_ = physical_device;
+	ILOG("Chose physical device %d: %p", physical_device, physical_devices_[physical_device]);
 
 	GetDeviceLayerProperties();
 	if (!CheckLayers(device_layer_properties_, device_layer_names_)) {
@@ -551,6 +556,7 @@ VkResult VulkanContext::CreateDevice() {
 	} else {
 		VulkanLoadDeviceFunctions(device_);
 	}
+	ILOG("Device created.\n");
 	return res;
 }
 
@@ -569,7 +575,7 @@ VkResult VulkanContext::InitDebugMsgCallback(PFN_vkDebugReportCallbackEXT dbgFun
 	cb.flags = bits;
 	cb.pfnCallback = dbgFunc;
 	cb.pUserData = userdata;
-	VkResult res = vkCreateDebugReportCallbackEXT(instance_, &cb, nullptr, &msg_callback);
+	VkResult res = dyn_vkCreateDebugReportCallbackEXT(instance_, &cb, nullptr, &msg_callback);
 	switch (res) {
 	case VK_SUCCESS:
 		msg_callbacks.push_back(msg_callback);
@@ -584,7 +590,7 @@ VkResult VulkanContext::InitDebugMsgCallback(PFN_vkDebugReportCallbackEXT dbgFun
 
 void VulkanContext::DestroyDebugMsgCallback() {
 	while (msg_callbacks.size() > 0) {
-		vkDestroyDebugReportCallbackEXT(instance_, msg_callbacks.back(), nullptr);
+		dyn_vkDestroyDebugReportCallbackEXT(instance_, msg_callbacks.back(), nullptr);
 		msg_callbacks.pop_back();
 	}
 }
@@ -681,19 +687,19 @@ void VulkanContext::ReinitSurfaceXCB(int width, int height) {
 
 #elif defined(VK_USE_PLATFORM_XLIB_KHR)
 
-void VulkanContext::InitSurfaceXlib(Display	*display, Window window, int width, int height) {
+bool VulkanContext::InitSurfaceXlib(Display	*display, Window window, int width, int height) {
 	display_ = display;
 	window_ = window;
 
-	ReinitSurfaceXlib(width, height);
+	return ReinitSurfaceXlib(width, height);
 }
 
-void VulkanContext::ReinitSurfaceXlib(int width, int height) {
+bool VulkanContext::ReinitSurfaceXlib(int width, int height) {
 	if (surface_ != VK_NULL_HANDLE) {
 		ILOG("Destroying Xlib Vulkan surface (%d, %d)", width_, height_);
 		vkDestroySurfaceKHR(instance_, surface_, nullptr);
-		surface_ = VK_NULL_HANDLE;
 	}
+	surface_ = VK_NULL_HANDLE;
 
 	VkResult U_ASSERT_ONLY res;
 
@@ -704,10 +710,11 @@ void VulkanContext::ReinitSurfaceXlib(int width, int height) {
 	xlib.dpy = display_;
 	xlib.window = window_;
 	res = vkCreateXlibSurfaceKHR(instance_, &xlib, nullptr, &surface_);
-	assert(res == VK_SUCCESS);
+	_assert_msg_(G3D, res == VK_SUCCESS, "X11 surface error: %d (dpy=%p window=%d)", (int)res, display_, (int)window_);
 
 	width_ = width;
 	height_ = height;
+	return true;
 }
 
 #endif
@@ -757,16 +764,17 @@ bool VulkanContext::InitQueue() {
 	graphics_queue_family_index_ = graphicsQueueNodeIndex;
 
 	// Get the list of VkFormats that are supported:
-	uint32_t formatCount;
+	uint32_t formatCount = 0;
 	VkResult res = vkGetPhysicalDeviceSurfaceFormatsKHR(physical_devices_[physical_device_], surface_, &formatCount, nullptr);
-	assert(res == VK_SUCCESS);
-	if (res != VK_SUCCESS)
+	_assert_msg_(G3D, res == VK_SUCCESS, "Failed to get formats for device %p: %d surface: %p", physical_devices_[physical_device_], (int)res, surface_);
+	if (res != VK_SUCCESS) {
 		return false;
-	VkSurfaceFormatKHR *surfFormats = new VkSurfaceFormatKHR[formatCount];
-	res = vkGetPhysicalDeviceSurfaceFormatsKHR(physical_devices_[physical_device_], surface_, &formatCount, surfFormats);
+	}
+
+	std::vector<VkSurfaceFormatKHR> surfFormats(formatCount);
+	res = vkGetPhysicalDeviceSurfaceFormatsKHR(physical_devices_[physical_device_], surface_, &formatCount, surfFormats.data());
 	assert(res == VK_SUCCESS);
 	if (res != VK_SUCCESS) {
-		delete[] surfFormats;
 		return false;
 	}
 	// If the format list includes just one entry of VK_FORMAT_UNDEFINED,
@@ -793,7 +801,6 @@ bool VulkanContext::InitQueue() {
 		}
 		ILOG("swapchain_format: %d (/%d)", swapchainFormat_, formatCount);
 	}
-	delete[] surfFormats;
 
 	vkGetDeviceQueue(device_, graphics_queue_family_index_, 0, &gfx_queue_);
 	ILOG("gfx_queue_: %p", gfx_queue_);

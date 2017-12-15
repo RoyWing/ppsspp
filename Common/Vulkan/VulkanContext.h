@@ -146,8 +146,8 @@ public:
 	void InitSurfaceXCB(xcb_connection_t *conn, xcb_window_t window, int width, int height);
 	void ReinitSurfaceXCB(int width, int height);
 #elif defined(VK_USE_PLATFORM_XLIB_KHR)
-	void InitSurfaceXlib(Display *display, Window window, int width, int height);
-	void ReinitSurfaceXlib(int width, int height);
+	bool InitSurfaceXlib(Display *display, Window window, int width, int height);
+	bool ReinitSurfaceXlib(int width, int height);
 #endif
 
 	bool InitQueue();
